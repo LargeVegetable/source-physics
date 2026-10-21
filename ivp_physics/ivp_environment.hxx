@@ -216,7 +216,11 @@ class IVP_Environment {		// the environment
 		next_movement_check--;
 
 		if(next_movement_check==0) {
+#ifdef PLATFORM_VITA
+			next_movement_check=movement_check_count*3/2 + (short)(ivp_rand() * (movement_check_count/2));
+#else
 			next_movement_check=IVP_MOVEMENT_CHECK_COUNT*3/2 + (short)(ivp_rand() * (IVP_MOVEMENT_CHECK_COUNT/2));
+#endif
 			return IVP_TRUE;
 		} else {
 			return IVP_FALSE;
@@ -233,6 +237,14 @@ class IVP_Environment {		// the environment
     IVP_Time_CODE current_time_code;
     IVP_Time_CODE mindist_event_timestamp_reference;	
     short next_movement_check;
+#ifdef PLATFORM_VITA
+    // IVP_MOVEMENT_CHECK_COUNT is in PSIs and assumes 66 Hz PSIs: the checks
+    // that let resting objects fall asleep came every 0.23-0.3 s. The Vita
+    // steps once per 30 ms tick (-tickrate 33), which made it 0.45-0.6 s,
+    // so objects stayed awake (and cost simulation time) about twice as long
+    // as on PC. Scaled to the PSI length in set_delta_PSI_time
+    short movement_check_count;
+#endif
     
     IVP_ENV_STATE state;
 

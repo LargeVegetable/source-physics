@@ -206,6 +206,11 @@ void IVP_Environment::set_delta_PSI_time(IVP_DOUBLE psi_time){
     IVP_ASSERT(psi_time <= IVP_MAX_DELTA_PSI_TIME);
     delta_PSI_time = psi_time;
     inv_delta_PSI_time = 1.0f / delta_PSI_time;
+#ifdef PLATFORM_VITA
+    // the same real-time interval as IVP_MOVEMENT_CHECK_COUNT PSIs at 66 Hz
+    int count = (int)( IVP_MOVEMENT_CHECK_COUNT * ( 1.0 / 66.0 ) / psi_time + 0.5 );
+    movement_check_count = (short)( count < 2 ? 2 : count > IVP_MOVEMENT_CHECK_COUNT * 2 ? IVP_MOVEMENT_CHECK_COUNT * 2 : count );
+#endif
 }
 
 IVP_Environment::~IVP_Environment(){

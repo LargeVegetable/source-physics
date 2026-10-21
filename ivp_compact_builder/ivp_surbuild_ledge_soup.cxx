@@ -210,9 +210,14 @@ void IVP_SurfaceBuilder_Ledge_Soup::build_root_convex_hull(){
 
 
     IVP_Compact_Ledge *hull = cr.compile(); 
-    c_ledge_vec.add(hull);
-    node->compact_ledge = hull;
-    rec_spheres.add(node);
+    // compile() fails on some inputs (seen building displacement collision
+    // on Vita); the original only adds the hull when there is one, and a
+    // NULL hull in rec_spheres crashed allocate_compact_surface()
+    if ( hull != NULL ) {
+        c_ledge_vec.add(hull);
+        node->compact_ledge = hull;
+        rec_spheres.add(node);
+    }
 }
 /* decompiled version for references:
 IVP_Compact_Ledge * __thiscall build_root_convex_hull(IVP_SurfaceBuilder_Ledge_Soup *this)

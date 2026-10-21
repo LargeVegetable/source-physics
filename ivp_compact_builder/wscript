@@ -81,6 +81,10 @@ def build(bld):
 
 
 	bld.stlib(
+		# the hull builder (qhull) without -ffast-math on the Vita: runtime
+		# hull builds failed there. Simulation and traces keep it (speed)
+		cflags   = ['-fno-fast-math', '-fno-unsafe-math-optimizations'] if bld.env.DEST_OS == 'vita' else [],
+		cxxflags = ['-fno-fast-math', '-fno-unsafe-math-optimizations'] if bld.env.DEST_OS == 'vita' else [],
 		source   = source,
 		target   = PROJECT_NAME,
 		name     = PROJECT_NAME,
