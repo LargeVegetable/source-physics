@@ -1351,6 +1351,12 @@ void IVP_Mindist_Manager::remove_exact_mindist(IVP_Mindist *del_mindist)
 	{
 		del_mindist->mindist_status = IVP_MD_UNINITIALIZED;
 	}
+#ifdef PLATFORM_VITA
+	// the reset above is compiled out (IVP_IF): a mindist that still said
+	// HULL after its removal was removed again by its destructor when
+	// deleted before being re-inserted, corrupting the hull lists
+	del_mindist->mindist_status = IVP_MD_UNINITIALIZED;
+#endif
 	// de-link mindist from manager
 	if(del_mindist->next)
 	{
@@ -1384,6 +1390,12 @@ void IVP_Mindist_Manager::remove_invalid_mindist(IVP_Mindist *del_mindist)
 	{
 		del_mindist->mindist_status = IVP_MD_UNINITIALIZED;
 	}
+#ifdef PLATFORM_VITA
+	// the reset above is compiled out (IVP_IF): a mindist that still said
+	// HULL after its removal was removed again by its destructor when
+	// deleted before being re-inserted, corrupting the hull lists
+	del_mindist->mindist_status = IVP_MD_UNINITIALIZED;
+#endif
 	// de-link mindist from manager
 	if(del_mindist->next)
 	{
@@ -1409,6 +1421,12 @@ void IVP_Mindist_Manager::remove_hull_mindist(IVP_Mindist *del_mindist)
 	{
 		del_mindist->mindist_status = IVP_MD_UNINITIALIZED;
 	}
+#ifdef PLATFORM_VITA
+	// the reset above is compiled out (IVP_IF): a mindist that still said
+	// HULL after its removal was removed again by its destructor when
+	// deleted before being re-inserted, corrupting the hull lists
+	del_mindist->mindist_status = IVP_MD_UNINITIALIZED;
+#endif
 	IVP_Synapse_Real *syn0 = del_mindist->get_synapse(0);
 	IVP_Synapse_Real *syn1 = del_mindist->get_synapse(1);
 	syn0->get_hull_manager()->remove_synapse(syn0);

@@ -11,6 +11,17 @@ class IVP_Listener_Hull;
 #	include <ivp_listener_hull.hxx>
 #endif
 
+#ifdef PLATFORM_VITA
+class IVP_Hull_Manager;
+// Vita: a listener added to a hull manager it was already in, or removed
+// from one it wasn't in, corrupted the sorted list (both left a slot twice
+// on the free list or the chain empty with a nonzero count): objects then
+// crashed the physics as they were deleted at level changes and reloads,
+// or as their listeners were walked. These are refused and logged with the
+// caller (ivp_hull_manager.cxx)
+void ivp_vita_hull_problem( const char *what, IVP_Hull_Manager *hm, IVP_Listener_Hull *syn );
+#endif
+
 #define IVP_MAX_TIME_WITHOUT_RESET 10.0f  /* seconds */
 #define IVP_HULL_MANAGER_GRADIENT_FACTOR 1.00001f  /* high enough that till MAX_TIME no bits are lost */
 
@@ -80,6 +91,12 @@ IVP_FLOAT IVP_Hull_Manager::insert_synapse(IVP_Listener_Hull *syn, IVP_Time t_no
 {
     IVP_FLOAT dt = t_now - last_vpsi_time;
     IVP_FLOAT val = hull_value_last_vpsi + gradient * dt;
+#ifdef PLATFORM_VITA
+    if ( sorted_synapses.holds( syn->minlist_index, syn ) ) {
+	ivp_vita_hull_problem( "added while already in the list", this, syn );
+	sorted_synapses.remove_minlist_elem( syn->minlist_index );
+    }
+#endif
     syn->minlist_index = sorted_synapses.add((void *)syn, val + delta_valid_hull_time);
 
     //sorted_synapses.check();
@@ -89,6 +106,12 @@ IVP_FLOAT IVP_Hull_Manager::insert_synapse(IVP_Listener_Hull *syn, IVP_Time t_no
 IVP_FLOAT IVP_Hull_Manager::insert_lazy_synapse(IVP_Listener_Hull *syn, IVP_Time /*t_now*/, IVP_DOUBLE delta_valid_hull_time)
 {
     IVP_FLOAT val = hull_value_next_psi;
+#ifdef PLATFORM_VITA
+    if ( sorted_synapses.holds( syn->minlist_index, syn ) ) {
+	ivp_vita_hull_problem( "added (lazy) while already in the list", this, syn );
+	sorted_synapses.remove_minlist_elem( syn->minlist_index );
+    }
+#endif
     syn->minlist_index = sorted_synapses.add((void *)syn, val + delta_valid_hull_time);
     return hull_center_value_last_vpsi;
 }
@@ -111,12 +134,25 @@ inline void IVP_Hull_Manager::prefetch1_hull(){
 
 void IVP_Hull_Manager::remove_synapse(IVP_Listener_Hull *syn)
 {
+#ifdef PLATFORM_VITA
+    if ( !sorted_synapses.holds( syn->minlist_index, syn ) ) {
+	ivp_vita_hull_problem( "removed while not in the list", this, syn );
+	return;
+    }
+#endif
     sorted_synapses.remove_minlist_elem(syn->minlist_index);
 }
 
 void IVP_Hull_Manager::update_synapse(IVP_Listener_Hull *syn, IVP_Time t_now,  IVP_DOUBLE delta_valid_hull_time)
 {
+#ifdef PLATFORM_VITA
+    if ( sorted_synapses.holds( syn->minlist_index, syn ) )
+	sorted_synapses.remove_minlist_elem(syn->minlist_index);
+    else
+	ivp_vita_hull_problem( "updated while not in the list", this, syn );
+#else
     sorted_synapses.remove_minlist_elem(syn->minlist_index);
+#endif
     IVP_FLOAT dt = t_now - this->last_vpsi_time;
     IVP_FLOAT val = hull_value_last_vpsi + gradient * dt;
     syn->minlist_index = sorted_synapses.add((void *)syn, val + delta_valid_hull_time);
@@ -124,7 +160,14 @@ void IVP_Hull_Manager::update_synapse(IVP_Listener_Hull *syn, IVP_Time t_now,  I
 
 void IVP_Hull_Manager::update_lazy_synapse(IVP_Listener_Hull *syn, IVP_Time /*t_now*/,  IVP_DOUBLE delta_valid_hull_time)
 {
+#ifdef PLATFORM_VITA
+    if ( sorted_synapses.holds( syn->minlist_index, syn ) )
+	sorted_synapses.remove_minlist_elem(syn->minlist_index);
+    else
+	ivp_vita_hull_problem( "updated (lazy) while not in the list", this, syn );
+#else
     sorted_synapses.remove_minlist_elem(syn->minlist_index);
+#endif
     IVP_FLOAT val = hull_value_next_psi;
     syn->minlist_index = sorted_synapses.add((void *)syn, val + delta_valid_hull_time);
 }

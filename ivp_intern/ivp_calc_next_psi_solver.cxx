@@ -17,6 +17,24 @@
 #include <ivp_cache_object.hxx>
 #include <ivp_performancecounter.hxx>
 #include <ivp_constraint_car.hxx>
+#ifdef PLATFORM_VITA
+#include <ivu_vita_finite.hxx>
+
+// A core whose speed or transform has gone NaN or infinite is held where it
+// was and stopped, rather than carried on: a Combine APC in Water Hazard
+// reported NaN angles for minutes before the physics crashed. Logged for
+// the first few objects, then counted. Costs a few integer tests per moving
+// core per step; nothing changes while the state is finite
+static int s_nVitaCoreResets;
+static void ivp_vita_core_reset( IVP_Core *core, const char *what )
+{
+    const int n = __atomic_add_fetch( &s_nVitaCoreResets, 1, __ATOMIC_RELAXED );
+    if ( n > 16 && n % 1000 )
+	return;
+    const char *name = core->objects.len() ? core->objects.element_at( 0 )->get_name() : NULL;
+    so_trace( "[vita] ivp: non-finite %s on %s: held in place and stopped (%d so far)", what, name ? name : "?", n );
+}
+#endif
 
 IVP_DOUBLE IVP_Calc_Next_PSI_Solver::get_longest_time_step_dependent_on_rot() {
     IVP_DOUBLE rot_speed_scalar = core->rot_speed.real_length() + P_DOUBLE_EPS;
@@ -164,6 +182,22 @@ void IVP_Calc_Next_PSI_Solver::calc_next_PSI_matrix(IVP_Event_Sim *event_sim,IVP
 	}
     }    
 
+#ifdef PLATFORM_VITA
+   if ( !ivp_vita_finite( core->speed ) || !ivp_vita_finite( core->rot_speed ) ||
+	!ivp_vita_finite( core->speed_change ) || !ivp_vita_finite( core->rot_speed_change ) ) {
+	core->speed.set_to_zero();
+	core->rot_speed.set_to_zero();
+	core->speed_change.set_to_zero();
+	core->rot_speed_change.set_to_zero();
+	ivp_vita_core_reset( core, "speed" );
+   }
+   // the state this step starts from, to go back to
+   const IVP_U_Point vita_pos_start = core->pos_world_f_core_last_psi;
+   const IVP_U_Float_Point vita_delta_start = core->delta_world_f_core_psis;
+   const IVP_Time vita_time_start = core->time_of_last_psi;
+   const IVP_U_Quat vita_q_start = core->q_world_f_core_next_psi;
+#endif
+
    if (!( core->car_wheel && (core->max_surface_deviation == 0.0f) )) { //@@CB
 		core->clip_velocity(&core->speed, &core->rot_speed);
 	}
@@ -185,6 +219,47 @@ void IVP_Calc_Next_PSI_Solver::calc_next_PSI_matrix(IVP_Event_Sim *event_sim,IVP
 	core->q_world_f_core_next_psi.inline_set_mult_quat( &core->q_world_f_core_next_psi, &q_core_f_core);
 	core->q_world_f_core_next_psi.fast_normize_quat();
     }
+#ifdef PLATFORM_VITA
+    if ( !ivp_vita_finite( core->pos_world_f_core_last_psi ) || !ivp_vita_finite( core->q_world_f_core_next_psi ) ||
+	 !ivp_vita_finite( core->delta_world_f_core_psis ) || !ivp_vita_finite( q_core_f_core ) || !ivp_vita_finite( core->rot_speed ) ) {
+	// position: carried to now by the last good motion, else as it was,
+	// else the last calm one (only set once the core has moved), else the origin
+	IVP_U_Point pos = vita_pos_start;
+	pos.add_multiple( &vita_delta_start, core->environment->get_current_time() - vita_time_start );
+	if ( !ivp_vita_finite( pos ) )
+	    pos = vita_pos_start;
+	if ( !ivp_vita_finite( pos ) ) {
+	    if ( ivp_vita_finite( core->position_world_f_core_calm_reference[1] ) )
+		pos.set( &core->position_world_f_core_calm_reference[1] );
+	    else
+		pos.set_to_zero();
+	}
+	// rotation: as it was, else the last calm one if it is a real rotation
+	// (it is zero until the core has moved, and normalising a zero
+	// quaternion never ends), else none
+	IVP_U_Quat q = vita_q_start;
+	if ( !ivp_vita_finite( q ) ) {
+	    const IVP_U_Float_Quat &calm_q = core->q_world_f_core_calm_reference[1];
+	    q.x = calm_q.x; q.y = calm_q.y; q.z = calm_q.z; q.w = calm_q.w;
+	    const IVP_DOUBLE square = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
+	    if ( !ivp_vita_finite( q ) || !( square > 0.5 && square < 2.0 ) )
+		q.init();
+	}
+	q.normize_quat();
+	core->pos_world_f_core_last_psi = pos;
+	core->q_world_f_core_next_psi = q;
+	core->q_world_f_core_last_psi = q;
+	// and the matrix kept beside them, which pushes and transforms read
+	core->q_world_f_core_last_psi.set_matrix( &core->m_world_f_core_last_psi );
+	core->m_world_f_core_last_psi.vv.set( &core->pos_world_f_core_last_psi );
+	core->delta_world_f_core_psis.set_to_zero();
+	core->speed.set_to_zero();
+	core->rot_speed.set_to_zero();
+	core->current_speed = 0.0f;
+	q_core_f_core.init();
+	ivp_vita_core_reset( core, "position or rotation" );
+    }
+#endif
     
     IVP_Hull_Manager *h_manager_0;
     IVP_IF_PREFETCH_ENABLED(IVP_TRUE){

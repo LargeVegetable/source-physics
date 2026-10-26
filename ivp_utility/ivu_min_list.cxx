@@ -6,6 +6,7 @@
 #endif
 #include <ivp_physics.hxx>
 #include "ivu_min_list.hxx"
+#include "ivu_vita_finite.hxx"	// so_trace
 						 
 IVP_U_Min_List::IVP_U_Min_List(int start_size)
 {
@@ -21,6 +22,9 @@ IVP_U_Min_List::IVP_U_Min_List(int start_size)
 	for( ; i < malloced_size; i++ )
 	{
 		elems[i].next = i+1;
+#ifdef PLATFORM_VITA
+		elems[i].element = NULL;	// free (see holds)
+#endif
 	}
 	
 	elems[malloced_size-1].next = IVP_U_MINLIST_UNUSED;
@@ -96,6 +100,9 @@ IVP_U_MINLIST_INDEX IVP_U_Min_List::add(void *elem, IVP_U_MINLIST_FIXED_POINT va
 		for(; i < malloced_size; i++)
 		{
 			elems[i].next = i+1;
+#ifdef PLATFORM_VITA
+			elems[i].element = NULL;	// free (see holds)
+#endif
 		}
 
 		elems[malloced_size-1].next = IVP_U_MINLIST_UNUSED;
@@ -233,6 +240,17 @@ end:
 void IVP_U_Min_List::remove_minlist_elem(IVP_U_MINLIST_INDEX index)
 {
 	IVP_ASSERT( index < malloced_size );
+#ifdef PLATFORM_VITA
+	// the assert is compiled out: an index past the array would link a slot
+	// outside it into the free list
+	if ( index >= malloced_size )
+	{
+		static int s_nBadIndex;
+		if ( ++s_nBadIndex <= 8 )
+			so_trace( "[vita] ivp: min list %p: removal of index %u past its %u slots, ignored", this, index, (unsigned)malloced_size );
+		return;
+	}
+#endif
 
 	IVP_U_Min_List_Element *e = & elems[index];
 	unsigned int prev = e->prev;
@@ -286,6 +304,9 @@ void IVP_U_Min_List::remove_minlist_elem(IVP_U_MINLIST_INDEX index)
     counter-=1;
     e->next = free_list;
     free_list = index;
+#ifdef PLATFORM_VITA
+    e->element = NULL;	// free (see holds)
+#endif
 
 #ifdef _DEBUG
 //	check();

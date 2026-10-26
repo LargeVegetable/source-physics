@@ -1,5 +1,8 @@
 #include <ivp_physics.hxx>
 #include <hk_physics/physics.h>
+#ifdef PLATFORM_VITA
+#include <string.h>
+#endif
 
 
 void hk_Rigid_Body_Core::add_to_mass_matrix_inv(
@@ -49,7 +52,16 @@ void hk_Rigid_Body_Core::add_to_mass_matrix_inv(
 void hk_Rigid_Body_Core::apply_impulses( hk_Core_VMQ_Input &input,
 		const hk_real impulse_strength[])
 {
+#ifdef PLATFORM_VITA
+	// isnan is folded away under -ffast-math (-ffinite-math-only), which the
+	// physics is built with: test the exponent bits (NaN and infinity)
+	unsigned int vita_bits;
+	memcpy( &vita_bits, &impulse_strength[0], sizeof( vita_bits ) );
+	__asm__( "" : "+r"( vita_bits ) );
+	if ( physical_unmoveable || pinned || ( vita_bits & 0x7f800000u ) == 0x7f800000u ) return;
+#else
 	if ( physical_unmoveable || pinned || isnan(impulse_strength[0]) ) return;
+#endif
 	int i = input.m_n_queries-1;
 	hk_Impulse_Info *mq = input.m_vmq;
 	hk_Single_Rigid_Body_CFAD *ds = (hk_Single_Rigid_Body_CFAD *)input.m_buffer;

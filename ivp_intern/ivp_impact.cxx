@@ -24,6 +24,7 @@
 #include <ivp_calc_next_psi_solver.hxx>
 #include <ivp_debug_manager.hxx>
 #include <ivp_anomaly_manager.hxx>
+#include <ivu_vita_finite.hxx>	// so_trace
 
 #define IVP_SAFETY_FACTOR_FOR_DELAY 1.2f
 #define IVP_INV_SAFETY_FACTOR_FOR_DELAY 1.0f/IVP_SAFETY_FACTOR_FOR_DELAY
@@ -1240,6 +1241,15 @@ void IVP_Mindist::do_impact(){
 	{
 		// BUGBUG: someone changed a collision filter and didn't tell us!
 		IVP_ASSERT(0);
+#ifdef PLATFORM_VITA
+		// nothing cleared the flag, so every later impact of the session
+		// deleted its pair and was skipped
+		g_fDeferDeleteMindist = false;
+		static int s_nVitaDeferred;
+		if ( ++s_nVitaDeferred <= 8 )
+			so_trace( "[vita] ivp: impact of %s and %s dropped: a collision filter changed during it without a recheck (%d so far)",
+				objects[0]->get_name() ? objects[0]->get_name() : "?", objects[1]->get_name() ? objects[1]->get_name() : "?", s_nVitaDeferred );
+#endif
 		delete this;
 		return;
 	}

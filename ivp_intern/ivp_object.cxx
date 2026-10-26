@@ -20,6 +20,7 @@
 #include <ivp_hull_manager.hxx>
 #include <ivp_mindist_intern.hxx>
 #include <ivp_friction.hxx>
+#include <ivu_vita_finite.hxx>
 #include <ivp_actuator.hxx>
 #include <ivp_cache_object.hxx>
 #include <ivp_debug_manager.hxx>
@@ -1029,6 +1030,16 @@ void IVP_Real_Object::convert_to_phantom(const IVP_Template_Phantom  *tmpl)
 
 void IVP_Real_Object::beam_object_to_new_position( const IVP_U_Quat *rotation_world_f_object, const IVP_U_Point *position_w_f_o, IVP_BOOL optimize_for_repeated_calls)
 {
+#ifdef PLATFORM_VITA
+	// a teleport to a NaN or infinite pose would carry it into the core
+	if ( !ivp_vita_finite( *rotation_world_f_object ) || !ivp_vita_finite( *position_w_f_o ) )
+	{
+		static int s_nRefused;
+		if ( ++s_nRefused <= 8 )
+			so_trace( "[vita] ivp: teleport of %s to a non-finite pose refused", get_name() ? get_name() : "?" );
+		return;
+	}
+#endif
 	IVP_Core *core = this->get_core();
 	IVP_U_Quat rotation_world_f_core(*rotation_world_f_object);
 	IVP_U_Point position_w_f_c(*position_w_f_o);

@@ -75,6 +75,41 @@ public:
 
     void remove_minlist_elem(IVP_U_MINLIST_INDEX index);
     void check();
+#ifdef PLATFORM_VITA
+    // Vita: whether elem is in the list at index. Free slots hold no element
+    // (removal clears it), so the hull manager can refuse to remove a
+    // listener twice or add it twice; either one corrupted the list
+    IVP_BOOL holds(IVP_U_MINLIST_INDEX index, const void *elem) const {
+	return (IVP_BOOL)( index < malloced_size && elems[index].element == elem );
+    }
+    IVP_BOOL index_in_range(IVP_U_MINLIST_INDEX index) const {
+	return (IVP_BOOL)( index < malloced_size );
+    }
+    // For a list whose links are damaged: the elements its slots hold (a
+    // removed slot holds none), then an empty list, consistent again
+    unsigned int vita_slots() const { return malloced_size; }
+    int vita_live_elements(void **out, int max) const {
+	int n = 0;
+	for ( unsigned int i = 0; i < malloced_size && n < max; i++ ) {
+	    if ( elems[i].element ) out[n++] = elems[i].element;
+	}
+	return n;
+    }
+    void vita_reset_empty() {
+	for ( unsigned int i = 0; i < malloced_size; i++ ) {
+	    elems[i].next = i + 1;
+	    elems[i].element = NULL;
+	}
+	elems[malloced_size - 1].next = IVP_U_MINLIST_UNUSED;
+	free_list = 0;
+	first_element = IVP_U_MINLIST_UNUSED;
+#ifdef IVP_U_MINLIST_USELONG
+	first_long = IVP_U_MINLIST_UNUSED;
+#endif
+	min_value = IVP_U_MINLIST_MAXVALUE;
+	counter = 0;
+    }
+#endif
 };
 
 class IVP_U_Min_List_Enumerator {

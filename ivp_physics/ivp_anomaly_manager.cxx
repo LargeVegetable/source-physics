@@ -10,6 +10,7 @@
 #include <ivp_physics.hxx>
 
 #include <ivp_anomaly_manager.hxx>
+#include <ivu_vita_finite.hxx>
 
 #include <ivp_mindist.hxx>
 #include <ivp_mindist_intern.hxx>
@@ -53,12 +54,19 @@ void IVP_Anomaly_Manager::environment_will_be_deleted(IVP_Environment *){
 
 void IVP_Anomaly_Manager::max_velocity_exceeded(IVP_Anomaly_Limits *al, IVP_Core *, IVP_U_Float_Point *velocity_in_out){
     IVP_DOUBLE square_speed = velocity_in_out->quad_length();
+#ifdef PLATFORM_VITA
+    // an infinite speed scaled by max / sqrt(inf) = 0 became NaN
+    if ( !ivp_vita_finite( square_speed ) ) { velocity_in_out->set_to_zero(); return; }
+#endif
     IVP_DOUBLE max_speed = al->get_max_velocity();
     velocity_in_out->mult(0.99f * max_speed / IVP_Inline_Math::ivp_sqrtf(square_speed));
 }
 
 void IVP_Anomaly_Manager::max_angular_velocity_exceeded(IVP_Anomaly_Limits *al, IVP_Core *core, IVP_U_Float_Point *angular_velocity_in_out){
     IVP_DOUBLE square_rot_speed = angular_velocity_in_out->quad_length();
+#ifdef PLATFORM_VITA
+    if ( !ivp_vita_finite( square_rot_speed ) ) { angular_velocity_in_out->set_to_zero(); return; }
+#endif
     IVP_DOUBLE max_rot_speed = al->get_max_angular_velocity_per_psi() * core->environment->get_inv_delta_PSI_time();
     angular_velocity_in_out->mult(0.9f * max_rot_speed / IVP_Inline_Math::ivp_sqrtf(square_rot_speed));
 }
